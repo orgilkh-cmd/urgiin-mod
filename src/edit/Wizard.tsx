@@ -14,6 +14,7 @@ interface Entry {
   sex: Sex
   birth?: FuzzyDate
   deceased: boolean
+  clanName?: string
 }
 
 interface Sibling extends Entry {
@@ -39,12 +40,14 @@ interface RowProps<T extends Entry> {
   convert: boolean
   /** Shown when the sex isn't implied by the label. */
   withSex?: boolean
+  /** Own ургийн овог field, for people who don't take it from someone already entered. */
+  withClan?: boolean
   onRemove?: () => void
   autoFocus?: boolean
   children?: React.ReactNode
 }
 
-function PersonRow<T extends Entry>({ label, entry, onChange, convert, withSex, onRemove, autoFocus, children }: RowProps<T>) {
+function PersonRow<T extends Entry>({ label, entry, onChange, convert, withSex, withClan, onRemove, autoFocus, children }: RowProps<T>) {
   const set = (patch: Partial<Entry>) => onChange({ ...entry, ...patch })
   return (
     <div className="wizard-row">
@@ -57,6 +60,15 @@ function PersonRow<T extends Entry>({ label, entry, onChange, convert, withSex, 
         aria-label={label ? `${label}: нэр` : 'Нэр'}
         autoFocus={autoFocus}
       />
+      {withClan && (
+        <NameInput
+          convert={convert}
+          value={entry.clanName ?? ''}
+          onChange={(clanName) => set({ clanName })}
+          placeholder="Ургийн овог"
+          aria-label={label ? `${label}: ургийн овог` : 'Ургийн овог'}
+        />
+      )}
       <YearInput value={entry.birth} onChange={(birth) => set({ birth })} />
       <label className="check">
         <input type="checkbox" checked={entry.deceased} onChange={(e) => set({ deceased: e.target.checked })} />
@@ -102,26 +114,35 @@ export function Wizard({ onCancel, onDone }: { onCancel: () => void; onDone: (me
   const save = async () => {
     setSaving(true)
     setError('')
-    const person = (e: Entry, patronymic?: string): NewPerson => ({
+    // Father's line carries my clan; mother, grandmothers and spouses keep their own.
+    const myClan = cleanName(me.clanName ?? '') || undefined
+    const person = (e: Entry, patronymic?: string, clan = cleanName(e.clanName ?? '') || undefined): NewPerson => ({
       givenName: cleanName(e.givenName),
       sex: e.sex,
       birth: e.birth,
       isLiving: !e.deceased,
       ...(patronymic && { patronymic }),
+      ...(clan && { clanName: clan }),
     })
     try {
       const meId = await db.transaction('rw', [db.persons, db.unions, db.parentLinks, db.settings], async () => {
         const meId = await createPerson(db, person(me))
-        const fatherId = filled(father) ? await addRelative(db, meId, 'parent', { person: person(father) }) : undefined
+        const fatherId = filled(father) ? await addRelative(db, meId, 'parent', { person: person(father, undefined, myClan) }) : undefined
         const motherId = filled(mother) ? await addRelative(db, meId, 'parent', { person: person(mother) }) : undefined
         const [pgf, pgm, mgf, mgm] = grand
-        for (const [parent, g] of [[fatherId, pgf], [fatherId, pgm], [motherId, mgf], [motherId, mgm]] as const) {
-          if (parent && filled(g)) await addRelative(db, parent, 'parent', { person: person(g) })
+        const motherClan = cleanName(mother.clanName ?? '') || undefined
+        for (const [parent, g, clan] of [
+          [fatherId, pgf, myClan],
+          [fatherId, pgm, undefined],
+          [motherId, mgf, motherClan],
+          [motherId, mgm, undefined],
+        ] as const) {
+          if (parent && filled(g)) await addRelative(db, parent, 'parent', { person: clan ? person(g, undefined, clan) : person(g) })
         }
         const fatherName = filled(father) ? cleanName(father.givenName) : undefined
         if (fatherId || motherId) {
           for (const s of siblings.filter(filled)) {
-            await addRelative(db, meId, 'sibling', { person: person(s, fatherName) }, { older: s.older })
+            await addRelative(db, meId, 'sibling', { person: person(s, fatherName, myClan) }, { older: s.older })
           }
         }
         const spouseIds: ID[] = []
@@ -137,7 +158,8 @@ export function Wizard({ onCancel, onDone }: { onCancel: () => void; onDone: (me
           const spouseId = spouseIds[c.spouse] || null
           const spouse = spouseId ? spouses[c.spouse] : undefined
           const dad = me.sex === 'M' ? me : spouse?.sex === 'M' ? spouse : undefined
-          await addRelative(db, meId, 'child', { person: person(c, dad && cleanName(dad.givenName)) }, { partnerId: spouseId })
+          const clan = dad ? cleanName(dad.clanName ?? '') || undefined : myClan
+          await addRelative(db, meId, 'child', { person: person(c, dad && cleanName(dad.givenName), clan) }, { partnerId: spouseId })
         }
         await saveSetting('homePersonId', meId)
         return meId
@@ -182,7 +204,8 @@ export function Wizard({ onCancel, onDone }: { onCancel: () => void; onDone: (me
         {step === 0 && (
           <>
             <p className="hint">Эхлээд өөрийгөө оруулна. Зөвхөн нэр заавал. Латинаар бичвэл кирилл болно: Orgil → Оргил.</p>
-            <PersonRow entry={me} onChange={setMe} convert={convert} withSex autoFocus />
+            <PersonRow entry={me} onChange={setMe} convert={convert} withSex withClan autoFocus />
+            <p className="hint">Ургийн овгоо бичвэл аав, өвөө, ах дүү, хүүхдүүдэд тань автоматаар өгнө. Ээж, эхнэр нь өөрийн овогтой.</p>
           </>
         )}
 
@@ -190,7 +213,7 @@ export function Wizard({ onCancel, onDone }: { onCancel: () => void; onDone: (me
           <>
             <p className="hint">Мэдэхгүй бол хоосон орхиж болно.</p>
             <PersonRow label="Аав" entry={father} onChange={setFather} convert={convert} autoFocus />
-            <PersonRow label="Ээж" entry={mother} onChange={setMother} convert={convert} />
+            <PersonRow label="Ээж" entry={mother} onChange={setMother} convert={convert} withClan />
           </>
         )}
 
@@ -201,7 +224,7 @@ export function Wizard({ onCancel, onDone }: { onCancel: () => void; onDone: (me
               <>
                 <h3 className="section-title">Аавын тал</h3>
                 {(['Өвөө', 'Эмээ'] as const).map((label, i) => (
-                  <PersonRow key={label} label={label} entry={grand[i]} convert={convert}
+                  <PersonRow key={label} label={label} entry={grand[i]} convert={convert} withClan={i === 1}
                     onChange={(e) => setGrand(grand.map((g, j) => (j === i ? e : g)))} autoFocus={i === 0} />
                 ))}
               </>
@@ -212,7 +235,7 @@ export function Wizard({ onCancel, onDone }: { onCancel: () => void; onDone: (me
                 {(['Нагац өвөө', 'Нагац эмээ'] as const).map((label, k) => {
                   const i = k + 2
                   return (
-                    <PersonRow key={label} label={label} entry={grand[i]} convert={convert}
+                    <PersonRow key={label} label={label} entry={grand[i]} convert={convert} withClan={k === 1}
                       onChange={(e) => setGrand(grand.map((g, j) => (j === i ? e : g)))} autoFocus={!filled(father) && k === 0} />
                   )
                 })}
@@ -269,6 +292,7 @@ export function Wizard({ onCancel, onDone }: { onCancel: () => void; onDone: (me
                 entry={s}
                 convert={convert}
                 withSex={me.sex === 'U'}
+                withClan
                 autoFocus={i === spouses.length - 1}
                 onChange={(e) => setSpouses(spouses.map((x, j) => (j === i ? e : x)))}
                 onRemove={spouses.length > 1 ? () => setSpouses(spouses.filter((_, j) => j !== i)) : undefined}

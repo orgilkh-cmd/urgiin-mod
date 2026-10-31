@@ -1,0 +1,190 @@
+.table-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 16px 16px;
+  gap: 10px;
+}
+
+.table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 14px;
+}
+
+.table-search {
+  flex: 1 1 200px;
+  max-width: 320px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+
+.table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.table-filters .chip b {
+  margin-left: 2px;
+  font-weight: 600;
+}
+
+.table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.people-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.people-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.people-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.people-table td.name-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--card);
+}
+
+.people-table th:first-child {
+  left: 0;
+  z-index: 3;
+}
+
+.people-table input:not([type='checkbox']),
+.people-table select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 110px;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+
+.people-table input.year {
+  min-width: 72px;
+  width: 80px;
+}
+
+.people-table select {
+  min-width: 56px;
+  width: auto;
+}
+
+.people-table input:hover,
+.people-table select:hover {
+  border-color: var(--border);
+}
+
+.people-table input:focus,
+.people-table select:focus {
+  border-color: var(--accent);
+  background: var(--paper);
+  outline: none;
+}
+
+.people-table td.missing {
+  background: var(--missing-bg);
+}
+
+.people-table td.missing.soft {
+  background: transparent;
+}
+
+.people-table td.conflict {
+  background: var(--conflict-bg);
+}
+
+.people-table tr.deceased .name-cell input {
+  color: var(--muted);
+}
+
+.people-table .suggest {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border: 1px dashed var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cell-row {
+  display: flex;
+  align-items: center;
+}
+
+.people-table .warn {
+  margin-left: 4px;
+  color: var(--conflict-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.death-cell,
+.parents-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.parents-cell {
+  font-size: 13px;
+}
+
+.parents-cell .suggest {
+  margin-left: 0;
+}
+
+.people-table .badge {
+  display: inline-block;
+  font-size: 12px;
+}
+
+.row-actions {
+  text-align: right;
+}
+
+.table-empty {
+  padding: 24px;
+  text-align: center;
+}

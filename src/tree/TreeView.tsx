@@ -16,6 +16,8 @@ interface Props {
   onEdit?: (id: ID) => void
   ancestorDepth: number
   descendantDepth: number
+  /** Generations of ancestors whose siblings' families are shown; 0 = none. */
+  collateral: number
 }
 
 interface View {
@@ -30,12 +32,12 @@ const clamp = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
 /** Pointer travel before a press counts as a drag rather than a click. */
 const DRAG_THRESHOLD = 5
 
-export function TreeView({ data, terms, focus, onFocus, onEdit, ancestorDepth, descendantDepth }: Props) {
+export function TreeView({ data, terms, focus, onFocus, onEdit, ancestorDepth, descendantDepth, collateral }: Props) {
   const graph = useMemo(() => new FamilyGraph(data), [data])
   const kinship = useMemo(() => new Kinship(graph, terms), [graph, terms])
   const layout = useMemo(
-    () => layoutTree(graph, focus, { ancestorDepth, descendantDepth }),
-    [graph, focus, ancestorDepth, descendantDepth],
+    () => layoutTree(graph, focus, { ancestorDepth, descendantDepth, collateral }),
+    [graph, focus, ancestorDepth, descendantDepth, collateral],
   )
   const people = useMemo(() => new Map(data.persons.map((p) => [p.id, p])), [data])
 
@@ -160,7 +162,7 @@ export function TreeView({ data, terms, focus, onFocus, onEdit, ancestorDepth, d
         className={`canvas${animate ? ' animate' : ''}`}
         style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}
       >
-        <svg className="tree-lines" key={`${focus}|${ancestorDepth}|${descendantDepth}`} aria-hidden>
+        <svg className="tree-lines" key={`${focus}|${ancestorDepth}|${descendantDepth}|${collateral}`} aria-hidden>
           {layout.lines.map((pts, i) => (
             <polyline key={i} points={pts.map((p) => p.join(',')).join(' ')} />
           ))}

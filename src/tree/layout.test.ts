@@ -4,8 +4,8 @@ import { sampleFamily } from '../sample/sampleFamily'
 import { CARD_W, layoutTree, type TreeLayout } from './layout'
 
 const graph = new FamilyGraph(sampleFamily())
-const layout = (focus: string, ancestorDepth = 3, descendantDepth = 3) =>
-  layoutTree(graph, focus, { ancestorDepth, descendantDepth })
+const layout = (focus: string, ancestorDepth = 3, descendantDepth = 3, collateral = 0) =>
+  layoutTree(graph, focus, { ancestorDepth, descendantDepth, collateral })
 const card = (l: TreeLayout, id: string) => l.cards.find((c) => c.id === id)
 
 function expectNoOverlaps(l: TreeLayout) {
@@ -71,5 +71,50 @@ describe('hourglass layout', () => {
       expectNoOverlaps(l)
       expect(new Set(l.cards.map((c) => c.id)).size).toBe(l.cards.length)
     }
+  })
+
+  it('shows ancestors only in the direct view', () => {
+    const l = layout('Оргил')
+    for (const id of ['Ганаа', 'Нараа', 'Лхагва', 'Ариун']) expect(card(l, id)).toBeUndefined()
+  })
+
+  it('adds siblings of parents and grandparents with their families', () => {
+    const l = layout('Оргил', 3, 3, 2)
+    const y = (id: string) => card(l, id)!.y
+    const x = (id: string) => card(l, id)!.x
+    // Father's siblings to the left of him, mother's to the right of her.
+    expect(y('Ганаа')).toBe(y('Бат'))
+    expect(x('Ганаа')).toBeLessThan(x('Бат'))
+    expect(x('Нараа')).toBeGreaterThan(x('Сараа'))
+    // Cousin and their child, on the rows below.
+    expect(y('Бямба')).toBe(0)
+    expect(y('Түвшин')).toBeGreaterThan(0)
+    // Grandfather's brother and his line, further out than the father's siblings.
+    expect(y('Лхагва')).toBe(y('Дорж'))
+    expect(x('Лхагва')).toBeLessThan(x('Ганаа'))
+    expect(y('Цогт')).toBe(0)
+    // Siblings' children.
+    expect(card(l, 'Ариун')).toBeDefined()
+  })
+
+  it('stops at the chosen number of generations', () => {
+    const l = layout('Оргил', 3, 3, 1)
+    expect(card(l, 'Ганаа')).toBeDefined()
+    expect(card(l, 'Лхагва')).toBeUndefined()
+  })
+
+  it('never overlaps cards in the expanded views', () => {
+    for (const focus of ['Оргил', 'Бат', 'Дорж', 'Тэмүүжин', 'Цогт', 'Түвшин', 'Сувд']) {
+      for (const collateral of [1, 2, 99]) {
+        const l = layout(focus, 99, 99, collateral)
+        expectNoOverlaps(l)
+        expect(new Set(l.cards.map((c) => c.id)).size).toBe(l.cards.length)
+      }
+    }
+  })
+
+  it('reaches every blood relative in the full view', () => {
+    const l = layout('Цогт', 99, 99, 99)
+    for (const id of ['Жаргал', 'Оргил', 'Энх', 'Цолмон', 'Түвшин', 'Төгс', 'Сараа']) expect(card(l, id)).toBeDefined()
   })
 })

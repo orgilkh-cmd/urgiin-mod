@@ -2,6 +2,8 @@
 //   rows above  — ancestors (father's side left, mother's side right)
 //   row 0       — older siblings · focus with partners · younger siblings
 //   rows below  — descendants, each with their partners; children grouped per union
+// With `collateral`, siblings of the focus and of nearer ancestors are added as whole branches
+// (with their descendants) outside everything already placed: father's side left, mother's right.
 import type { FamilyGraph } from '../kinship/graph'
 import { compareAge } from '../kinship/kinship'
 import type { ID } from '../model/types'
@@ -14,6 +16,10 @@ const ROW_H = CARD_H + GAP_Y
 const PITCH = CARD_W + GAP_X
 /** Vertical spacing between the child bars of different unions. */
 const BAR_STAGGER = 14
+/** Extra space between collateral branches so families read as separate blocks. */
+const BRANCH_GAP = GAP_X * 2
+/** Sibling bars of different ancestors in one row, as offsets above the row; avoids the parents' bar. */
+const SIBLING_BARS = [56, 46, 26, 16]
 
 export type Role = 'focus' | 'partner' | 'sibling' | 'ancestor' | 'descendant'
 export type Side = 'paternal' | 'maternal'
@@ -37,7 +43,13 @@ export interface TreeLayout {
 
 export interface LayoutOptions {
   ancestorDepth: number
+  /** Rows below the focus, for the focus's own line and for collateral branches. */
   descendantDepth: number
+  /**
+   * How many generations up to show siblings for, with their descendants: 0 = none,
+   * 1 = the focus's siblings' families and parents' siblings, 2 = also grandparents' siblings…
+   */
+  collateral?: number
 }
 
 interface DescUnit {
@@ -70,6 +82,7 @@ class HourglassLayout {
   private placed = new Set<ID>()
   private descSeen = new Set<ID>()
   private ancSeen = new Set<ID>()
+  private ancestors: { id: ID; cx: number; row: number; side: Side }[] = []
 
   constructor(graph: FamilyGraph, options: LayoutOptions) {
     this.g = graph
@@ -80,6 +93,7 @@ class HourglassLayout {
     const focusCx = this.placeDesc(this.measureDesc(focus, 0), 0, 0, 'focus')
     const siblingCxs = this.placeSiblings(focus)
     this.placeParents(this.measureAnc(focus, 0), focusCx, 0, [focusCx, ...siblingCxs])
+    this.placeCollaterals()
 
     const xs = this.cards.map((c) => c.x)
     const ys = this.cards.map((c) => c.y)
@@ -135,7 +149,7 @@ class HourglassLayout {
 
   // ── Descendants ────────────────────────────────────────
 
-  private measureDesc(id: ID, depth: number): DescUnit {
+  private measureDesc(id: ID, depth: number, limit = this.opts.descendantDepth): DescUnit {
     this.descSeen.add(id)
     const partners = this.partnersOf(id).filter((p) => !this.descSeen.has(p))
     for (const p of partners) this.descSeen.add(p)
@@ -147,7 +161,7 @@ class HourglassLayout {
     const cards = [...left.reverse(), id, ...right]
 
     const groups: DescUnit['groups'] = []
-    if (depth < this.opts.descendantDepth) {
+    if (depth < limit) {
       const byPartner = new Map<ID | undefined, ID[]>()
       for (const { childId } of this.g.childLinks(id)) {
         if (this.descSeen.has(childId)) continue
@@ -158,7 +172,7 @@ class HourglassLayout {
       }
       const position = (partner?: ID) => cards.indexOf(partner ?? id)
       for (const [partner, kids] of [...byPartner].sort((a, b) => position(a[0]) - position(b[0]))) {
-        const children = kids.sort(this.byAge).map((k) => this.measureDesc(k, depth + 1))
+        const children = kids.sort(this.byAge).map((k) => this.measureDesc(k, depth + 1, limit))
         groups.push({ partner, children, width: sumWidth(children.map((c) => c.width)) })
       }
     }
@@ -203,19 +217,32 @@ class HourglassLayout {
 
   // ── Siblings ───────────────────────────────────────────
 
-  /** Older siblings to the left of the focus row, younger (and unknown) to the right. */
-  private placeSiblings(focus: ID): number[] {
-    const siblings = [
+  /** Children of `id`'s parents other than `id`, oldest first. */
+  private siblingsOf(id: ID): ID[] {
+    return [
       ...new Set(
-        this.parentsOf(focus).flatMap((p) =>
+        this.parentsOf(id).flatMap((p) =>
           this.g.childLinks(p).filter((l) => l.kind !== 'step').map((l) => l.childId),
         ),
       ),
-    ].filter((s) => !this.placed.has(s))
-    const older = siblings
-      .filter((s) => compareAge(this.g.person(s), this.g.person(focus)) === 'older')
+    ]
+      .filter((s) => s !== id && !this.placed.has(s))
       .sort(this.byAge)
-    const younger = siblings.filter((s) => !older.includes(s)).sort(this.byAge)
+  }
+
+  /** Older siblings to the left of the focus row, younger (and unknown) to the right. */
+  private placeSiblings(focus: ID): number[] {
+    const siblings = this.siblingsOf(focus)
+    const older = siblings.filter((s) => compareAge(this.g.person(s), this.g.person(focus)) === 'older')
+    const younger = siblings.filter((s) => !older.includes(s))
+
+    if (this.opts.collateral) {
+      this.reserve()
+      return [
+        ...older.reverse().map((s) => this.placeBranch(s, 0, -1, GAP_X)),
+        ...younger.map((s) => this.placeBranch(s, 0, 1, GAP_X)),
+      ]
+    }
 
     const row0 = this.cards.filter((c) => c.y === 0)
     const minX = Math.min(...row0.map((c) => c.x))
@@ -257,6 +284,7 @@ class HourglassLayout {
       cursor += p.width + GAP_X
       const s = side ?? (this.g.sex(p.id) === 'F' ? 'maternal' : 'paternal')
       this.add(p.id, cx, row, 'ancestor', s)
+      this.ancestors.push({ id: p.id, cx, row, side: s })
       this.placeParents(p, cx, row, [cx], s)
       return cx
     })
@@ -269,6 +297,57 @@ class HourglassLayout {
       this.connect((first + last) / 2, midY, childRow, members)
     } else {
       this.connect(first, top(row) + CARD_H, childRow, members)
+    }
+  }
+
+  // ── Collateral branches ────────────────────────────────
+
+  /** Already placed people must not turn up again inside a branch. */
+  private reserve() {
+    for (const id of this.placed) this.descSeen.add(id)
+  }
+
+  private rows(u: DescUnit): number {
+    return 1 + Math.max(0, ...u.groups.flatMap((g) => g.children.map((c) => this.rows(c))))
+  }
+
+  /**
+   * Places `id` with partners and descendants (down to the descendant depth) beside
+   * everything already on the rows it spans: `dir` -1 = left, 1 = right. Returns its center x.
+   */
+  private placeBranch(id: ID, row: number, dir: -1 | 1, gap: number): number {
+    const u = this.measureDesc(id, 0, Math.max(0, this.opts.descendantDepth - row))
+    const span = this.rows(u)
+    const near = this.cards.filter((c) => c.y >= top(row) && c.y < top(row + span))
+    const left =
+      dir < 0
+        ? Math.min(...near.map((c) => c.x)) - gap - u.width
+        : Math.max(...near.map((c) => c.x + CARD_W)) + gap
+    return this.placeDesc(u, left, row, 'sibling')
+  }
+
+  /** Siblings of ancestors, nearest generation first so closer relatives stay closer to the middle. */
+  private placeCollaterals() {
+    const generations = Math.min(this.opts.collateral ?? 0, this.opts.ancestorDepth)
+    for (let gen = 1; gen <= generations; gen++) {
+      const row = -gen
+      const here = this.ancestors.filter((a) => a.row === row)
+      const ordered = [
+        ...here.filter((a) => a.side === 'paternal').sort((a, b) => b.cx - a.cx),
+        ...here.filter((a) => a.side === 'maternal').sort((a, b) => a.cx - b.cx),
+      ]
+      for (const a of ordered) {
+        this.reserve()
+        const siblings = this.siblingsOf(a.id)
+        if (!siblings.length) continue
+        const dir = a.side === 'maternal' ? 1 : -1
+        // Oldest ends up outermost on either side.
+        const cxs = (dir < 0 ? siblings.reverse() : siblings).map((s) => this.placeBranch(s, row, dir, BRANCH_GAP))
+        const barY = top(row) - SIBLING_BARS[here.indexOf(a) % SIBLING_BARS.length]
+        const all = [a.cx, ...cxs]
+        this.lines.push([[Math.min(...all), barY], [Math.max(...all), barY]])
+        for (const cx of all) this.lines.push([[cx, barY], [cx, top(row)]])
+      }
     }
   }
 }

@@ -47,6 +47,15 @@ export async function updatePerson(db: FamilyDB, id: ID, patch: Partial<Omit<Per
   await markChanged(db)
 }
 
+/** Gives several people the same ургийн овог at once. */
+export async function setClan(db: FamilyDB, ids: ID[], clanName: string) {
+  await db.transaction('rw', tables(db), async () => {
+    const updatedAt = now()
+    for (const id of ids) await db.persons.update(id, { clanName, updatedAt })
+    await markChanged(db)
+  })
+}
+
 /** Removes the person with every link and union they are part of. */
 export async function deletePerson(db: FamilyDB, id: ID) {
   await db.transaction('rw', tables(db), async () => {

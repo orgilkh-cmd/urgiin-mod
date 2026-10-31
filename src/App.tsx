@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BackupDialog } from './backup/BackupDialog'
 import { backupDue } from './db/backup'
+import { ClanSpreadDialog, type ClanChange } from './edit/ClanSpreadDialog'
 import { clearAllData, loadSampleFamily, saveSetting, useFamily, useSetting } from './db/instance'
 import { AddRelativeDialog } from './edit/AddRelativeDialog'
 import { quickAddLabel, type QuickAdd } from './edit/quickAdd'
@@ -11,15 +12,32 @@ import { displayName, formatYears } from './model/format'
 import type { ID } from './model/types'
 import { PeopleSearch } from './search/PeopleSearch'
 import { TermSettings } from './settings/TermSettings'
+import { PeopleTable } from './table/PeopleTable'
 import { TreeView } from './tree/TreeView'
+import { Segmented } from './ui/fields'
 import { useStored } from './ui/storage'
 import './App.css'
 
 type Modal =
   | { type: 'edit'; id: ID }
   | { type: 'add'; id: ID; kind: QuickAdd }
+  | ({ type: 'clan' } & ClanChange)
   | { type: 'terms' | 'search' | 'backup' }
   | null
+
+const VIEWS = ['tree', 'table'] as const
+/** How much of the family the tree shows: ancestors and descendants only, or with collateral lines. */
+const SCOPES = ['direct', 'middle', 'full'] as const
+const SCOPE_LABELS: [(typeof SCOPES)[number], string][] = [
+  ['direct', 'Шууд'],
+  ['middle', 'Дунд'],
+  ['full', 'Бүгд'],
+]
+const SCOPE_HINTS = {
+  direct: 'Эцэг эх, өвөг дээдэс, ах дүү, үр удам',
+  middle: 'Мөн авга, нагац, өвөө эмээгийн ах дүү, тэдний үр хүүхэд',
+  full: 'Цусан төрлийн бүх хүн',
+}
 
 export default function App() {
   const data = useFamily()
@@ -36,6 +54,8 @@ export default function App() {
   const [wizard, setWizard] = useState(false)
   const [ancestorDepth, setAncestorDepth] = useStored('ancestorDepth', 3)
   const [descendantDepth, setDescendantDepth] = useStored('descendantDepth', 3)
+  const [view, setView] = useStored('view', 'tree', VIEWS)
+  const [scope, setScope] = useStored('scope', 'direct', SCOPES)
   const [reminderHidden, setReminderHidden] = useState(false)
   // Checked once per visit; the reminder doesn't need to appear mid-session.
   const [openedAt] = useState(() => new Date())
@@ -65,6 +85,9 @@ export default function App() {
     setFocus(null)
     setHistory([])
   }
+
+  const closeModal = () => setModal(null)
+  const clanChanged = (change: ClanChange) => setModal({ type: 'clan', ...change })
 
   const backupDialog = modal?.type === 'backup' && (
     <BackupDialog
@@ -147,6 +170,7 @@ export default function App() {
     .filter((l) => l.childId === current && l.kind !== 'step')
     .map((l) => data.persons.find((p) => p.id === l.parentId))
   const hasParent = (sex: 'M' | 'F') => parents.some((p) => p?.sex === sex)
+  const full = scope === 'full'
   const quickAdds: QuickAdd[] = [
     ...(hasParent('M') ? [] : (['father'] as const)),
     ...(hasParent('F') ? [] : (['mother'] as const)),
@@ -171,23 +195,43 @@ export default function App() {
         <button type="button" className="btn" onClick={() => setModal({ type: 'search' })} title="Хайх (⌘K эсвэл /)">
           Хайх
         </button>
+        <Segmented
+          label="Харагдац"
+          value={view}
+          options={[
+            ['tree', 'Мод'],
+            ['table', 'Хүснэгт'],
+          ]}
+          onChange={setView}
+        />
         <span className="spacer" />
-        <label className="depth">
-          Дээш
-          <select value={ancestorDepth} onChange={(e) => setAncestorDepth(Number(e.target.value))}>
-            {[0, 1, 2, 3, 4, 5, 6].map((n) => (
-              <option key={n}>{n}</option>
-            ))}
-          </select>
-        </label>
-        <label className="depth">
-          Доош
-          <select value={descendantDepth} onChange={(e) => setDescendantDepth(Number(e.target.value))}>
-            {[0, 1, 2, 3, 4, 5].map((n) => (
-              <option key={n}>{n}</option>
-            ))}
-          </select>
-        </label>
+        {view === 'tree' && (
+          <>
+            <span title={SCOPE_HINTS[scope]}>
+              <Segmented label="Хэр өргөн" value={scope} options={SCOPE_LABELS} onChange={setScope} />
+            </span>
+            {!full && (
+              <>
+                <label className="depth">
+                  Дээш
+                  <select value={ancestorDepth} onChange={(e) => setAncestorDepth(Number(e.target.value))}>
+                    {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="depth">
+                  Доош
+                  <select value={descendantDepth} onChange={(e) => setDescendantDepth(Number(e.target.value))}>
+                    {[0, 1, 2, 3, 4, 5].map((n) => (
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+          </>
+        )}
         <button type="button" className="btn subtle" onClick={() => setModal({ type: 'terms' })}>
           Нэр томьёо
         </button>
@@ -213,6 +257,7 @@ export default function App() {
         </div>
       )}
 
+      {view === 'tree' && (
       <section className="focus-bar" aria-label="Сонгосон хүн">
         <span className="focus-name">{displayName(person)}</span>
         <span className="focus-years">{formatYears(person)}</span>
@@ -242,20 +287,42 @@ export default function App() {
           })}
         </span>
       </section>
+      )}
 
-      <TreeView
-        data={data}
-        terms={terms}
-        focus={current}
-        onFocus={go}
-        onEdit={(id) => setModal({ type: 'edit', id })}
-        ancestorDepth={ancestorDepth}
-        descendantDepth={descendantDepth}
-      />
+      {view === 'tree' ? (
+        <TreeView
+          data={data}
+          terms={terms}
+          focus={current}
+          onFocus={go}
+          onEdit={(id) => setModal({ type: 'edit', id })}
+          ancestorDepth={full ? 99 : ancestorDepth}
+          descendantDepth={full ? 99 : descendantDepth}
+          collateral={scope === 'direct' ? 0 : scope === 'middle' ? 2 : 99}
+        />
+      ) : (
+        <PeopleTable
+          data={data}
+          terms={terms}
+          focus={current}
+          onShow={(id) => {
+            go(id)
+            setView('tree')
+          }}
+          onEdit={(id) => setModal({ type: 'edit', id })}
+          onAdd={(id, kind) => setModal({ type: 'add', id, kind })}
+          onClanChange={clanChanged}
+        />
+      )}
 
-      {modal?.type === 'edit' && <PersonEditor data={data} personId={modal.id} onClose={() => setModal(null)} />}
+      {modal?.type === 'edit' && (
+        <PersonEditor data={data} personId={modal.id} onClose={closeModal} onClanChange={clanChanged} />
+      )}
       {modal?.type === 'add' && (
-        <AddRelativeDialog data={data} anchorId={modal.id} kind={modal.kind} onClose={() => setModal(null)} />
+        <AddRelativeDialog data={data} anchorId={modal.id} kind={modal.kind} onClose={closeModal} onClanChange={clanChanged} />
+      )}
+      {modal?.type === 'clan' && (
+        <ClanSpreadDialog data={data} id={modal.id} from={modal.from} to={modal.to} onClose={closeModal} />
       )}
       {modal?.type === 'search' && (
         <PeopleSearch data={data} terms={terms} focus={current} onPick={go} onClose={() => setModal(null)} />

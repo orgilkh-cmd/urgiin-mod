@@ -296,3 +296,16 @@
 .form-actions.backup-actions {
   justify-content: flex-start;
 }
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.chips .badge {
+  justify-self: auto;
+  font-size: 13px;
+  padding: 3px 9px;
+}

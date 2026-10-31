@@ -1,3 +1,5 @@
+import { inheritedClan } from '../kinship/clan'
+import { FamilyGraph } from '../kinship/graph'
 import type { FamilyData, ID, ParentLink, Person, Sex, Union } from '../model/types'
 
 /** Small builder for test families. Names double as IDs to keep tests readable. */
@@ -100,6 +102,25 @@ export function sampleFamily(): FamilyData {
     if (p.birth?.year && p.birth.year < 1940) {
       p.isLiving = false
       p.death = { year: p.birth.year + 72, qualifier: 'exact' }
+    }
+  }
+
+  // Clans for the people who married in; everyone else carries their father's. Төгс goes by his
+  // mother's clan, a mismatch the table view flags. Some are left blank on purpose.
+  const clans: Record<string, string> = {
+    Жаргал: 'Боржигин', Цэцэг: 'Жалайр', Төмөр: 'Хиад', Оюун: 'Тайчууд', Солонго: 'Олхонуд',
+    Долгор: 'Хонгирад', Төгс: 'Хонгирад', Ундрах: 'Мангуд', Сүх: 'Хорчин', Мөнх: 'Урианхай', Эрдэнэ: 'Барулас',
+  }
+  for (const p of f.data.persons) if (clans[p.id]) p.clanName = clans[p.id]
+  for (let changed = true; changed; ) {
+    changed = false
+    const g = new FamilyGraph(f.data)
+    for (const p of f.data.persons) {
+      const clan = !p.clanName && inheritedClan(g, p.id)
+      if (clan) {
+        p.clanName = clan
+        changed = true
+      }
     }
   }
   return f.data

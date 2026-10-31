@@ -4,6 +4,7 @@ import { deleteParentLink, deletePerson, deleteUnion, updateParentLink, updatePe
 import { displayName, formatYears } from '../model/format'
 import type { FamilyData, ID, ParentLink, Person, Union } from '../model/types'
 import { cleanName } from '../translit/latinToCyrillic'
+import type { ClanChange } from './ClanSpreadDialog'
 import { Dialog } from '../ui/Dialog'
 import { DateInput, Segmented } from '../ui/fields'
 import { SEX_OPTIONS } from '../ui/options'
@@ -14,6 +15,8 @@ interface Props {
   data: FamilyData
   personId: ID
   onClose: () => void
+  /** Saved with a new clan: lets the caller offer it to the descendants. */
+  onClanChange?: (change: ClanChange) => void
 }
 
 const LINK_KINDS: [ParentLink['kind'], string][] = [
@@ -29,7 +32,7 @@ const END_REASONS: [NonNullable<Union['endReason']> | '', string][] = [
   ['death', 'Нас барснаар'],
 ]
 
-export function PersonEditor({ data, personId, onClose }: Props) {
+export function PersonEditor({ data, personId, onClose, onClanChange }: Props) {
   const person = data.persons.find((p) => p.id === personId)
   const [draft, setDraft] = useState<Person | undefined>(person)
   const [convert, setConvert] = useStored('translit', true)
@@ -56,15 +59,17 @@ export function PersonEditor({ data, personId, onClose }: Props) {
     const givenName = cleanName(draft.givenName)
     if (!givenName) return
     const { id: _id, createdAt: _c, ...fields } = draft
+    const clanName = cleanName(draft.clanName ?? '') || undefined
     await updatePerson(db, personId, {
       ...fields,
       givenName,
       patronymic: cleanName(draft.patronymic ?? '') || undefined,
-      clanName: cleanName(draft.clanName ?? '') || undefined,
+      clanName,
       notes: draft.notes?.trim() || undefined,
       death: draft.isLiving ? undefined : draft.death,
     })
     onClose()
+    if (clanName && clanName !== person.clanName) onClanChange?.({ id: personId, from: person.clanName, to: clanName })
   }
 
   const remove = async () => {

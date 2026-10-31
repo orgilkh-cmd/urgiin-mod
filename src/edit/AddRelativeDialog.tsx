@@ -4,6 +4,7 @@ import { addRelative, type RelativeOptions, type Target } from '../db/edit'
 import { displayName, formatYears } from '../model/format'
 import type { FamilyData, FuzzyDate, ID, ParentLink, Sex, Union } from '../model/types'
 import { cleanName, searchKey } from '../translit/latinToCyrillic'
+import type { ClanChange } from './ClanSpreadDialog'
 import { quickAddLabel, type QuickAdd } from './quickAdd'
 import { Dialog } from '../ui/Dialog'
 import { Segmented, YearInput } from '../ui/fields'
@@ -26,9 +27,10 @@ interface Props {
   anchorId: ID
   kind: QuickAdd
   onClose: () => void
+  onClanChange?: (change: ClanChange) => void
 }
 
-export function AddRelativeDialog({ data, anchorId, kind, onClose }: Props) {
+export function AddRelativeDialog({ data, anchorId, kind, onClose, onClanChange }: Props) {
   const anchor = data.persons.find((p) => p.id === anchorId)!
   const byId = useMemo(() => new Map(data.persons.map((p) => [p.id, p])), [data])
   const partners = data.unions
@@ -40,6 +42,7 @@ export function AddRelativeDialog({ data, anchorId, kind, onClose }: Props) {
   const [mode, setMode] = useState<'new' | 'existing'>('new')
   const [givenName, setGivenName] = useState('')
   const [patronymic, setPatronymic] = useState<string | null>(null)
+  const [clan, setClan] = useState<string | null>(null)
   const [sex, setSex] = useState<Sex>(
     fixedSex[kind] ?? (kind === 'spouse' ? (anchor.sex === 'M' ? 'F' : anchor.sex === 'F' ? 'M' : 'U') : 'M'),
   )
@@ -68,6 +71,17 @@ export function AddRelativeDialog({ data, anchorId, kind, onClose }: Props) {
   })()
   const patronymicValue = patronymic ?? suggestedPatronymic
 
+  // Ургийн овог comes from the father (the mother's when he's unknown); wives keep their own.
+  const suggestedClan = (() => {
+    if (isChild) {
+      const partner = partnerId ? byId.get(partnerId) : undefined
+      const father = anchor.sex === 'M' ? anchor : partner?.sex === 'M' ? partner : undefined
+      return (father ?? anchor).clanName ?? ''
+    }
+    return kind === 'father' || kind === 'sibling' ? (anchor.clanName ?? '') : ''
+  })()
+  const clanValue = clan ?? suggestedClan
+
   const candidates = useMemo(() => {
     const q = searchKey(query)
     return data.persons
@@ -91,6 +105,7 @@ export function AddRelativeDialog({ data, anchorId, kind, onClose }: Props) {
         person: {
           givenName: name,
           patronymic: cleanName(patronymicValue) || undefined,
+          clanName: cleanName(clanValue) || undefined,
           sex: effectiveSex,
           birth,
           isLiving: !deceased,
@@ -103,8 +118,11 @@ export function AddRelativeDialog({ data, anchorId, kind, onClose }: Props) {
     if (kind === 'spouse' && endReason) options.union = { endReason }
     if (kind === 'sibling') options.older = siblingType.startsWith('older')
     try {
-      await addRelative(db, anchorId, kind === 'father' || kind === 'mother' ? 'parent' : isChild ? 'child' : kind, target, options)
+      const id = await addRelative(db, anchorId, kind === 'father' || kind === 'mother' ? 'parent' : isChild ? 'child' : kind, target, options)
       onClose()
+      // A new parent with a clan: their children may not have one yet.
+      const clanName = 'person' in target ? target.person.clanName : undefined
+      if (clanName && (kind === 'father' || kind === 'mother')) onClanChange?.({ id, to: clanName })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -143,10 +161,14 @@ export function AddRelativeDialog({ data, anchorId, kind, onClose }: Props) {
                 <NameInput convert={convert} value={patronymicValue} onChange={setPatronymic} />
               </label>
               <label className="field">
-                Төрсөн он
-                <YearInput value={birth} onChange={setBirth} />
+                Ургийн овог
+                <NameInput convert={convert} value={clanValue} onChange={setClan} />
               </label>
             </div>
+            <label className="field">
+              Төрсөн он
+              <YearInput value={birth} onChange={setBirth} />
+            </label>
             {kind === 'spouse' && (
               <div className="field">
                 Хүйс
