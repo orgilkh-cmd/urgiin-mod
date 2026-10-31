@@ -21,6 +21,8 @@ export interface RelativeOptions {
   union?: Partial<Omit<Union, 'id' | 'partnerIds'>>
   /** Sibling without birth years on both sides: older or younger than the anchor. */
   older?: boolean
+  /** Sibling of someone with no parents yet: the shared parent to create first. */
+  parent?: NewPerson
 }
 
 export type Target = { existingId: ID } | { person: NewPerson }
@@ -33,7 +35,7 @@ export function makePerson(fields: NewPerson): Person {
   return { sex: 'U', isLiving: true, ...fields, id: newId(), createdAt: time, updatedAt: time }
 }
 
-const tables = (db: FamilyDB) => [db.persons, db.unions, db.parentLinks, db.settings]
+const tables = (db: FamilyDB) => [db.persons, db.unions, db.parentLinks, db.photos, db.settings]
 
 export async function createPerson(db: FamilyDB, fields: NewPerson): Promise<ID> {
   const person = makePerson(fields)
@@ -56,6 +58,22 @@ export async function setClan(db: FamilyDB, ids: ID[], clanName: string) {
   })
 }
 
+/** Sets or (with null) removes a person's photo. */
+export async function setPhoto(db: FamilyDB, personId: ID, dataUrl: string | null) {
+  await db.transaction('rw', tables(db), async () => {
+    const person = await db.persons.get(personId)
+    if (!person) return
+    if (person.photoId) await db.photos.delete(person.photoId)
+    let photoId: ID | undefined
+    if (dataUrl) {
+      photoId = newId()
+      await db.photos.add({ id: photoId, dataUrl })
+    }
+    await db.persons.update(personId, { photoId, updatedAt: now() })
+    await markChanged(db)
+  })
+}
+
 /** Removes the person with every link and union they are part of. */
 export async function deletePerson(db: FamilyDB, id: ID) {
   await db.transaction('rw', tables(db), async () => {
@@ -63,6 +81,8 @@ export async function deletePerson(db: FamilyDB, id: ID) {
     for (const u of unions) await deleteUnion(db, u.id)
     await db.parentLinks.where('childId').equals(id).delete()
     await db.parentLinks.where('parentId').equals(id).delete()
+    const photoId = (await db.persons.get(id))?.photoId
+    if (photoId) await db.photos.delete(photoId)
     await db.persons.delete(id)
     const home = await db.settings.get('homePersonId')
     if (home?.value === id) await db.settings.delete('homePersonId')
@@ -118,12 +138,19 @@ export async function addRelative(
         await linkChild(db, anchor, id, options)
         break
       case 'sibling':
+        if (options.parent && !(await parentLinksOf(db, anchor)).length) {
+          await linkParent(db, anchor, await createPerson(db, options.parent), 'birth')
+        }
         await linkSibling(db, anchor, id, options.older)
         break
     }
     await markChanged(db)
     return id
   })
+}
+
+async function parentLinksOf(db: FamilyDB, child: ID) {
+  return (await db.parentLinks.where('childId').equals(child).toArray()).filter(counted)
 }
 
 async function unionsOf(db: FamilyDB, id: ID) {

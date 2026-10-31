@@ -49,12 +49,15 @@ export function parseBackup(text: string): FamilyExport {
   if (!d.persons.every((p) => typeof p?.id === 'string' && typeof p.givenName === 'string')) {
     throw new Error('Файл гэмтсэн байна: хүний мэдээлэл дутуу.')
   }
-  return { ...file, settings: Array.isArray(file.settings) ? file.settings : [] }
+  const photos = Array.isArray(file.photos)
+    ? file.photos.filter((p) => typeof p?.id === 'string' && typeof p.dataUrl === 'string' && p.dataUrl.startsWith('data:image/'))
+    : []
+  return { ...file, settings: Array.isArray(file.settings) ? file.settings : [], photos }
 }
 
 /** Replaces the family with the backup's; keeps who "Би" is on this device if they are in it. */
 export async function restoreBackup(db: FamilyDB, file: FamilyExport) {
-  await db.transaction('rw', [db.persons, db.unions, db.parentLinks, db.settings], async () => {
+  await db.transaction('rw', [db.persons, db.unions, db.parentLinks, db.photos, db.settings], async () => {
     const home = (await db.settings.get('homePersonId'))?.value
     const fileHome = file.settings.find((s) => s.key === 'homePersonId')?.value
     const settings = file.settings.filter((s) => s.key !== 'homePersonId' && !DEVICE_KEYS.includes(s.key))

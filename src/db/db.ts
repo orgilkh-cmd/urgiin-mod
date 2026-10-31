@@ -1,9 +1,10 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type { FamilyData, ID, ParentLink, Person, Union } from '../model/types'
 
+/** A small square JPEG as a data URL (~20–40 KB), so it goes into backups as is. */
 export interface Photo {
   id: ID
-  blob: Blob
+  dataUrl: string
 }
 
 /** Key/value settings, e.g. `terms` → user overrides of kinship words. */
@@ -50,9 +51,10 @@ export interface FamilyExport {
   exportedAt: string
   data: FamilyData
   settings: Setting[]
+  /** Missing in files from before photos existed. */
+  photos?: Photo[]
 }
 
-// Photos are not exported yet (M4).
 export async function exportFamily(db: FamilyDB): Promise<FamilyExport> {
   return {
     format: EXPORT_FORMAT,
@@ -60,6 +62,7 @@ export async function exportFamily(db: FamilyDB): Promise<FamilyExport> {
     exportedAt: new Date().toISOString(),
     data: await loadFamily(db),
     settings: await db.settings.toArray(),
+    photos: await db.photos.toArray(),
   }
 }
 
@@ -67,11 +70,12 @@ export async function exportFamily(db: FamilyDB): Promise<FamilyExport> {
 export async function importFamily(db: FamilyDB, file: FamilyExport): Promise<void> {
   if (file.format !== EXPORT_FORMAT) throw new Error('Not a family-tree export file')
   if (file.version > EXPORT_VERSION) throw new Error(`Export version ${file.version} is newer than this app`)
-  await db.transaction('rw', [db.persons, db.unions, db.parentLinks, db.settings], async () => {
-    await Promise.all([db.persons.clear(), db.unions.clear(), db.parentLinks.clear(), db.settings.clear()])
+  await db.transaction('rw', [db.persons, db.unions, db.parentLinks, db.photos, db.settings], async () => {
+    await Promise.all([db.persons.clear(), db.unions.clear(), db.parentLinks.clear(), db.photos.clear(), db.settings.clear()])
     await db.persons.bulkAdd(file.data.persons)
     await db.unions.bulkAdd(file.data.unions)
     await db.parentLinks.bulkAdd(file.data.parentLinks)
+    await db.photos.bulkAdd(file.photos ?? [])
     await db.settings.bulkAdd(file.settings)
   })
 }

@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useMemo } from 'react'
 import { loadFamily, openFamilyDB } from './db'
 import type { FamilyData } from '../model/types'
 import { sampleFamily } from '../sample/sampleFamily'
@@ -8,6 +9,12 @@ export const db = openFamilyDB()
 /** Live family data; undefined while loading. */
 export function useFamily(): FamilyData | undefined {
   return useLiveQuery(() => loadFamily(db))
+}
+
+/** Live photo id → image URL. */
+export function usePhotos(): Map<string, string> {
+  const photos = useLiveQuery(() => db.photos.toArray())
+  return useMemo(() => new Map((photos ?? []).map((p) => [p.id, p.dataUrl])), [photos])
 }
 
 /** Live setting value: undefined while loading, null when not set. */

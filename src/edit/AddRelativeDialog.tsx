@@ -61,13 +61,18 @@ export function AddRelativeDialog({ data, anchorId, kind, onClose, onClanChange 
   const effectiveSex: Sex =
     kind === 'sibling' ? (siblingType === 'olderBrother' || siblingType === 'youngerBrother' ? 'M' : 'F') : sex
 
+  // Siblings are linked through a parent; someone with none gets one created from this name.
+  const needsParent = kind === 'sibling' && !data.parentLinks.some((l) => l.childId === anchorId && l.kind !== 'step')
+  const [parentName, setParentName] = useState<string | null>(null)
+  const parentValue = parentName ?? anchor.patronymic ?? ''
+
   // Children take their father's name; siblings share the anchor's.
   const suggestedPatronymic = (() => {
     if (isChild) {
       const father = anchor.sex === 'M' ? anchor : partnerId ? byId.get(partnerId) : undefined
       return father?.sex === 'M' ? father.givenName : ''
     }
-    return kind === 'sibling' ? (anchor.patronymic ?? '') : ''
+    return kind === 'sibling' ? anchor.patronymic || (needsParent ? parentValue : '') : ''
   })()
   const patronymicValue = patronymic ?? suggestedPatronymic
 
@@ -117,6 +122,11 @@ export function AddRelativeDialog({ data, anchorId, kind, onClose, onClanChange 
     if (isChild) options.partnerId = partnerId || null
     if (kind === 'spouse' && endReason) options.union = { endReason }
     if (kind === 'sibling') options.older = siblingType.startsWith('older')
+    if (needsParent) {
+      const name = cleanName(parentValue)
+      if (!name) return setError('Ах дүүг ааваар нь холбоно. Аавын нэрийг бичнэ үү.')
+      options.parent = { givenName: name, sex: 'M', ...(anchor.clanName && { clanName: anchor.clanName }) }
+    }
     try {
       const id = await addRelative(db, anchorId, kind === 'father' || kind === 'mother' ? 'parent' : isChild ? 'child' : kind, target, options)
       onClose()
@@ -147,6 +157,14 @@ export function AddRelativeDialog({ data, anchorId, kind, onClose, onClanChange 
 
         {kind === 'sibling' && (
           <Segmented label="Хэн бэ" value={siblingType} options={SIBLING_TYPES} onChange={setSiblingType} />
+        )}
+
+        {needsParent && (
+          <label className="field">
+            Аавын нэр *
+            <NameInput convert={convert} value={parentValue} onChange={setParentName} />
+            <span className="hint">{displayName(anchor)} — эцэг эх нь оруулаагүй байна. Ах дүүг холбохын тулд энэ нэрээр аавыг нь нэмнэ.</span>
+          </label>
         )}
 
         {mode === 'new' ? (

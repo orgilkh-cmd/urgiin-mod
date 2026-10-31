@@ -70,6 +70,18 @@ describe('editing', () => {
     expect(await db.persons.count()).toBe(1)
   })
 
+  it('creates the shared parent when asked, so a sibling can be added', async () => {
+    const db = fresh()
+    const wife = await createPerson(db, { givenName: 'Болор-Эрдэнэ', patronymic: 'Сүх', sex: 'F' })
+    const sis = await addRelative(db, wife, 'sibling', { person: { givenName: 'Уянга', sex: 'F' } }, { older: true, parent: { givenName: 'Сүх', sex: 'M' } })
+    expect(await relate(db, wife, sis)).toBe('Эгч')
+    const father = (await db.persons.toArray()).find((p) => p.givenName === 'Сүх')!
+    expect(await relate(db, wife, father.id)).toBe('Аав')
+    // A second sibling reuses that parent.
+    await addRelative(db, wife, 'sibling', { person: { givenName: 'Ану', sex: 'F' } }, { older: false, parent: { givenName: 'Сүх', sex: 'M' } })
+    expect((await db.persons.toArray()).filter((p) => p.givenName === 'Сүх')).toHaveLength(1)
+  })
+
   it('links an existing person instead of creating one', async () => {
     const db = fresh()
     const a = await createPerson(db, { givenName: 'Бат', sex: 'M' })

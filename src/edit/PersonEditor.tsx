@@ -1,6 +1,8 @@
-import { useState, type FormEvent } from 'react'
-import { db } from '../db/instance'
-import { deleteParentLink, deletePerson, deleteUnion, updateParentLink, updatePerson, updateUnion } from '../db/edit'
+import { useRef, useState, type FormEvent } from 'react'
+import { db, usePhotos } from '../db/instance'
+import { deleteParentLink, deletePerson, deleteUnion, setPhoto, updateParentLink, updatePerson, updateUnion } from '../db/edit'
+import { resizePhoto } from '../photo/resize'
+import { Avatar } from '../ui/Avatar'
 import { displayName, formatYears } from '../model/format'
 import type { FamilyData, ID, ParentLink, Person, Union } from '../model/types'
 import { cleanName } from '../translit/latinToCyrillic'
@@ -36,7 +38,23 @@ export function PersonEditor({ data, personId, onClose, onClanChange }: Props) {
   const person = data.persons.find((p) => p.id === personId)
   const [draft, setDraft] = useState<Person | undefined>(person)
   const [convert, setConvert] = useStored('translit', true)
+  const photos = usePhotos()
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [photoError, setPhotoError] = useState('')
   if (!person || !draft) return null
+
+  const choosePhoto = async (file: File | undefined) => {
+    if (!file) return
+    setPhotoError('')
+    try {
+      await setPhoto(db, personId, await resizePhoto(file))
+    } catch {
+      setPhotoError('Энэ зургийг уншиж чадсангүй. JPG эсвэл PNG зураг сонгоно уу.')
+    } finally {
+      if (fileInput.current) fileInput.current.value = ''
+    }
+  }
+  const photoUrl = person.photoId ? photos.get(person.photoId) : undefined
 
   const set = (patch: Partial<Person>) => setDraft({ ...draft, ...patch })
   const name = (id: ID) => {
@@ -85,6 +103,21 @@ export function PersonEditor({ data, personId, onClose, onClanChange }: Props) {
   return (
     <Dialog title="Хүний мэдээлэл" onClose={onClose} actions={<ConvertToggle on={convert} onChange={setConvert} />}>
       <form className="form" onSubmit={save}>
+        <div className="photo-field">
+          <Avatar person={person} url={photoUrl} className="avatar big" />
+          <div className="photo-actions">
+            <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
+              {photoUrl ? 'Зураг солих' : 'Зураг нэмэх'}
+            </button>
+            {photoUrl && (
+              <button type="button" className="btn subtle" onClick={() => setPhoto(db, personId, null)}>
+                Зураг арилгах
+              </button>
+            )}
+            <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => choosePhoto(e.target.files?.[0])} />
+          </div>
+        </div>
+        {photoError && <p className="error">{photoError}</p>}
         <label className="field">
           Нэр *
           <NameInput convert={convert} value={draft.givenName} onChange={(givenName) => set({ givenName })} required autoFocus />

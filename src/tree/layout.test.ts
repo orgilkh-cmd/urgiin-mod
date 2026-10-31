@@ -37,11 +37,22 @@ describe('hourglass layout', () => {
     expect(card(l, 'Төгс')).toMatchObject({ role: 'sibling', y: 0 })
   })
 
-  it('shows partners beside the focus and children below', () => {
+  it('puts spouses under their partner and children below both', () => {
     const l = layout('Оргил')
-    expect(card(l, 'Номин')).toMatchObject({ role: 'partner', y: 0 })
-    expect(card(l, 'Тэмүүжин')!.y).toBeGreaterThan(0)
-    expect(card(l, 'Золзаяа')).toMatchObject({ role: 'partner' })
+    const me = card(l, 'Оргил')!
+    const wife = card(l, 'Номин')!
+    expect(wife).toMatchObject({ role: 'partner', x: me.x })
+    expect(wife.y).toBeGreaterThan(0)
+    expect(card(l, 'Тэмүүжин')!.y).toBeGreaterThan(wife.y)
+    expect(card(l, 'Золзаяа')).toMatchObject({ role: 'partner', x: card(l, 'Тэмүүжин')!.x })
+  })
+
+  it("lines siblings up on the focus's row with their spouses under them", () => {
+    const l = layout('Оргил')
+    expect(card(l, 'Ганбат')!.y).toBe(0)
+    expect(card(l, 'Ундрах')).toMatchObject({ role: 'partner', x: card(l, 'Ганбат')!.x, y: card(l, 'Номин')!.y })
+    // The direct view leaves siblings' children out.
+    expect(card(l, 'Ариун')).toBeUndefined()
   })
 
   it('puts two wives on either side, each with her own children', () => {

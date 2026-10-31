@@ -85,6 +85,32 @@
   background: var(--maternal);
 }
 
+/* Married in: shorter card under the partner, dashed edge. */
+.card.partner {
+  height: 64px;
+  padding: 7px 10px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  column-gap: 8px;
+  border-style: dashed;
+  background: var(--paper);
+}
+
+.card.partner .avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
+
+.card.partner .years {
+  display: none;
+}
+
+.card.partner .badge {
+  grid-column: 2;
+  grid-row: 2;
+}
+
 .card.focus {
   border: 2px solid var(--accent);
   box-shadow: 0 6px 18px var(--focus-glow);
@@ -226,6 +252,12 @@
 
 .swatch.maternal {
   background: var(--maternal);
+}
+
+.swatch.partner {
+  border-style: dashed;
+  border-color: var(--muted);
+  background: var(--paper);
 }
 
 .swatch.deceased {

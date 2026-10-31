@@ -10,6 +10,8 @@ import './tree.css'
 interface Props {
   data: FamilyData
   terms: Terms
+  /** Photo id → image URL. */
+  photos: Map<ID, string>
   focus: ID
   onFocus: (id: ID) => void
   /** Double-click on a card. */
@@ -32,7 +34,7 @@ const clamp = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
 /** Pointer travel before a press counts as a drag rather than a click. */
 const DRAG_THRESHOLD = 5
 
-export function TreeView({ data, terms, focus, onFocus, onEdit, ancestorDepth, descendantDepth, collateral }: Props) {
+export function TreeView({ data, terms, photos, focus, onFocus, onEdit, ancestorDepth, descendantDepth, collateral }: Props) {
   const graph = useMemo(() => new FamilyGraph(data), [data])
   const kinship = useMemo(() => new Kinship(graph, terms), [graph, terms])
   const layout = useMemo(
@@ -171,7 +173,15 @@ export function TreeView({ data, terms, focus, onFocus, onEdit, ancestorDepth, d
           const person = people.get(c.id)
           return (
             person && (
-              <PersonCard key={c.id} card={c} person={person} relation={kinship.relate(focus, c.id)} onSelect={select} onEdit={onEdit} />
+              <PersonCard
+                key={c.id}
+                card={c}
+                person={person}
+                relation={kinship.relate(focus, c.id)}
+                photo={person.photoId && photos.get(person.photoId)}
+                onSelect={select}
+                onEdit={onEdit}
+              />
             )
           )
         })}
@@ -193,6 +203,7 @@ export function TreeView({ data, terms, focus, onFocus, onEdit, ancestorDepth, d
       <div className="legend" aria-hidden>
         <span><i className="swatch paternal" />Аавын тал</span>
         <span><i className="swatch maternal" />Ээжийн тал</span>
+        <span><i className="swatch partner" />Гэрлэлтээр</span>
         <span><i className="swatch deceased" />Нас барсан</span>
       </div>
     </div>

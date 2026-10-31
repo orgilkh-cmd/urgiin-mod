@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { BackupDialog } from './backup/BackupDialog'
 import { backupDue } from './db/backup'
 import { ClanSpreadDialog, type ClanChange } from './edit/ClanSpreadDialog'
-import { clearAllData, loadSampleFamily, saveSetting, useFamily, useSetting } from './db/instance'
+import { clearAllData, loadSampleFamily, saveSetting, useFamily, usePhotos, useSetting } from './db/instance'
 import { AddRelativeDialog } from './edit/AddRelativeDialog'
 import { quickAddLabel, type QuickAdd } from './edit/quickAdd'
 import { PersonEditor } from './edit/PersonEditor'
+import { Gallery } from './gallery/Gallery'
 import { Wizard } from './edit/Wizard'
 import { mnTerms, type Terms } from './kinship/terms.mn'
 import { displayName, formatYears } from './model/format'
@@ -25,7 +26,7 @@ type Modal =
   | { type: 'terms' | 'search' | 'backup' }
   | null
 
-const VIEWS = ['tree', 'table'] as const
+const VIEWS = ['tree', 'gallery', 'table'] as const
 /** How much of the family the tree shows: ancestors and descendants only, or with collateral lines. */
 const SCOPES = ['direct', 'middle', 'full'] as const
 const SCOPE_LABELS: [(typeof SCOPES)[number], string][] = [
@@ -41,6 +42,7 @@ const SCOPE_HINTS = {
 
 export default function App() {
   const data = useFamily()
+  const photos = usePhotos()
   const home = useSetting<ID>('homePersonId')
   const sampleLoaded = useSetting<boolean>('sampleLoaded')
   const termOverrides = useSetting<Partial<Terms>>('terms')
@@ -200,6 +202,7 @@ export default function App() {
           value={view}
           options={[
             ['tree', 'Мод'],
+            ['gallery', 'Цомог'],
             ['table', 'Хүснэгт'],
           ]}
           onChange={setView}
@@ -257,7 +260,7 @@ export default function App() {
         </div>
       )}
 
-      {view === 'tree' && (
+      {view !== 'table' && (
       <section className="focus-bar" aria-label="Сонгосон хүн">
         <span className="focus-name">{displayName(person)}</span>
         <span className="focus-years">{formatYears(person)}</span>
@@ -270,29 +273,23 @@ export default function App() {
           </button>
         )}
         <span className="quick-adds">
-          {quickAdds.map((kind) => {
-            const noParents = kind === 'sibling' && parents.length === 0
-            return (
-              <button
-                key={kind}
-                type="button"
-                className="chip"
-                disabled={noParents}
-                title={noParents ? 'Ах, эгч, дүүг эцэг эхээр нь холбодог. Эхлээд аав эсвэл ээжийг нэмнэ үү.' : undefined}
-                onClick={() => setModal({ type: 'add', id: current, kind })}
-              >
-                + {quickAddLabel(kind, person)}
-              </button>
-            )
-          })}
+          {quickAdds.map((kind) => (
+            <button key={kind} type="button" className="chip" onClick={() => setModal({ type: 'add', id: current, kind })}>
+              + {quickAddLabel(kind, person)}
+            </button>
+          ))}
         </span>
       </section>
       )}
 
-      {view === 'tree' ? (
+      {view === 'gallery' && (
+        <Gallery data={data} terms={terms} photos={photos} focus={current} onFocus={go} onEdit={(id) => setModal({ type: 'edit', id })} />
+      )}
+      {view === 'tree' && (
         <TreeView
           data={data}
           terms={terms}
+          photos={photos}
           focus={current}
           onFocus={go}
           onEdit={(id) => setModal({ type: 'edit', id })}
@@ -300,7 +297,8 @@ export default function App() {
           descendantDepth={full ? 99 : descendantDepth}
           collateral={scope === 'direct' ? 0 : scope === 'middle' ? 2 : 99}
         />
-      ) : (
+      )}
+      {view === 'table' && (
         <PeopleTable
           data={data}
           terms={terms}
