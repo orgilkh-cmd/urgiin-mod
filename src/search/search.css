@@ -1,0 +1,30 @@
+.search-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip.on {
+  background: var(--accent);
+  border-style: solid;
+  color: var(--card);
+}
+
+.search-results {
+  max-height: min(420px, 55dvh);
+}
+
+.search-results button.deceased {
+  color: var(--muted);
+}
+
+.search-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.search-results .badge {
+  font-size: 11px;
+}

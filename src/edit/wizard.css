@@ -1,0 +1,102 @@
+.wizard {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 32px 16px 48px;
+  overflow: auto;
+}
+
+.wizard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wizard-head h1 {
+  margin: 0;
+  font-family: 'Noto Serif', Georgia, serif;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.wizard-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 18px 0 20px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.wizard-steps li {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.wizard-steps li.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--card);
+  font-weight: 600;
+}
+
+.wizard-steps li.done {
+  background: var(--badge-bg);
+  border-color: transparent;
+}
+
+.wizard-steps li button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.wizard-body {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.wizard-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.wizard-row .wizard-label {
+  width: 92px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.form .wizard-row input:not([type='checkbox']) {
+  flex: 1 1 180px;
+  width: auto;
+}
+
+.form .wizard-row input.year {
+  flex: 0 1 120px;
+}
+
+.form .wizard-row select {
+  width: auto;
+}
+
+.form-actions .danger-left {
+  margin-right: auto;
+}
+
+.wizard-body > .btn {
+  justify-self: start;
+}

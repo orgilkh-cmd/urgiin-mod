@@ -1,0 +1,51 @@
+:root {
+  --paper: #faf6ef;
+  --card: #ffffff;
+  --ink: #2b2620;
+  --muted: #7a7064;
+  --border: #e6ddd0;
+  --accent: #9a4f2c;
+  --badge-bg: #f5e7dd;
+  --paternal: #eaf0f7;
+  --maternal: #f8ece4;
+  --avatar: #efe6da;
+  --line: #b9ab98;
+  --dot: #e9e1d4;
+  --mourning: #4a4239;
+  --shadow: rgba(60, 40, 20, 0.08);
+  --focus-glow: rgba(154, 79, 44, 0.22);
+  --move: 450ms cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  font: 16px/1.5 'Noto Sans', system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1d1a17;
+    --card: #27231f;
+    --ink: #eee6da;
+    --muted: #a39887;
+    --border: #3a342d;
+    --accent: #e0956b;
+    --badge-bg: #3d2c22;
+    --paternal: #222a34;
+    --maternal: #352a21;
+    --avatar: #3a332b;
+    --line: #5e554a;
+    --dot: #2a2622;
+    --mourning: #cfc4b4;
+    --shadow: rgba(0, 0, 0, 0.3);
+    --focus-glow: rgba(224, 149, 107, 0.25);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+}
