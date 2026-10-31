@@ -11,6 +11,8 @@ import { Dialog } from '../ui/Dialog'
 import { DateInput, Segmented } from '../ui/fields'
 import { SEX_OPTIONS } from '../ui/options'
 import { ConvertToggle, NameInput } from '../ui/NameInput'
+import { byBirth } from '../kinship/kinship'
+import { OrderDialog } from './OrderDialog'
 import { useStored } from '../ui/storage'
 
 interface Props {
@@ -41,6 +43,7 @@ export function PersonEditor({ data, personId, onClose, onClanChange }: Props) {
   const photos = usePhotos()
   const fileInput = useRef<HTMLInputElement>(null)
   const [photoError, setPhotoError] = useState('')
+  const [ordering, setOrdering] = useState(false)
   if (!person || !draft) return null
 
   const choosePhoto = async (file: File | undefined) => {
@@ -67,7 +70,11 @@ export function PersonEditor({ data, personId, onClose, onClanChange }: Props) {
   }
 
   const parentLinks = data.parentLinks.filter((l) => l.childId === personId)
-  const childLinks = data.parentLinks.filter((l) => l.parentId === personId)
+  const birthSort = (a: ID, b: ID) => {
+    const [x, y] = [data.persons.find((p) => p.id === a), data.persons.find((p) => p.id === b)]
+    return x && y ? byBirth(x, y) : 0
+  }
+  const childLinks = data.parentLinks.filter((l) => l.parentId === personId).sort((a, b) => birthSort(a.childId, b.childId))
   const unions = data.unions
     .filter((u) => (u.partnerIds as ID[]).includes(personId))
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
@@ -264,7 +271,14 @@ export function PersonEditor({ data, personId, onClose, onClanChange }: Props) {
 
         {childLinks.length > 0 && (
           <>
-            <h3 className="section-title">Хүүхдүүд</h3>
+            <h3 className="section-title section-row">
+              Хүүхдүүд
+              {childLinks.filter((l) => l.kind !== 'step').length > 1 && (
+                <button type="button" className="btn subtle" onClick={() => setOrdering(true)}>
+                  ⇅ Дараалал
+                </button>
+              )}
+            </h3>
             <ul className="rel-list">
               {childLinks.map((l) => (
                 <li key={l.id}>
@@ -286,6 +300,8 @@ export function PersonEditor({ data, personId, onClose, onClanChange }: Props) {
             </ul>
           </>
         )}
+
+        {ordering && <OrderDialog data={data} parentIds={[personId]} onClose={() => setOrdering(false)} />}
 
         <div className="form-actions">
           <button type="button" className="btn danger" onClick={remove}>

@@ -24,6 +24,13 @@ export function compareAge(a?: Person, b?: Person): Age {
   return 'unknown'
 }
 
+/** Sort comparator, oldest first: birth date, then birth order, then the order they were entered. */
+export function byBirth(a: Person, b: Person): number {
+  const age = compareAge(a, b)
+  if (age !== 'unknown') return age === 'older' ? -1 : 1
+  return (a.birthOrder ?? Infinity) - (b.birthOrder ?? Infinity) || a.createdAt.localeCompare(b.createdAt)
+}
+
 /** Shortest blood path: `up` steps from the focus to the common ancestor, then `down` to the target. */
 interface BloodPath {
   up: number

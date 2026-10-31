@@ -2,6 +2,7 @@
 // "smart linking" (SPEC.md §2) lives here so the UI only says what the user meant.
 import { markChanged } from './backup'
 import type { FamilyDB } from './db'
+import { byBirth, compareAge } from '../kinship/kinship'
 import type { ID, ParentLink, Person, Union } from '../model/types'
 
 export type NewPerson = Partial<Omit<Person, 'id' | 'createdAt' | 'updatedAt'>> & { givenName: string }
@@ -56,6 +57,23 @@ export async function setClan(db: FamilyDB, ids: ID[], clanName: string) {
     for (const id of ids) await db.persons.update(id, { clanName, updatedAt })
     await markChanged(db)
   })
+}
+
+/** Numbers people 1, 2, 3… in the given order, oldest first. */
+export async function setBirthOrder(db: FamilyDB, ids: ID[]) {
+  await db.transaction('rw', tables(db), async () => {
+    for (const [i, id] of ids.entries()) await db.persons.update(id, { birthOrder: i + 1 })
+    await markChanged(db)
+  })
+}
+
+/** Children of any of these parents (birth or adopted), oldest first. */
+async function childrenOf(db: FamilyDB, parentIds: ID[]): Promise<Person[]> {
+  const ids = new Set<ID>()
+  for (const parentId of parentIds) {
+    for (const l of await db.parentLinks.where('parentId').equals(parentId).toArray()) if (counted(l)) ids.add(l.childId)
+  }
+  return (await db.persons.bulkGet([...ids])).filter((p): p is Person => !!p).sort(byBirth)
 }
 
 /** Sets or (with null) removes a person's photo. */
@@ -225,6 +243,22 @@ async function linkChild(db: FamilyDB, parent: ID, child: ID, options: RelativeO
   const unionId = partnerId ? await findOrCreateUnion(db, parent, partnerId) : undefined
   await addLink(db, { childId: child, parentId: parent, kind, unionId })
   if (partnerId) await addLink(db, { childId: child, parentId: partnerId, kind, unionId })
+  if (kind !== 'step') await placeNewChild(db, parent, child)
+}
+
+/**
+ * Gives the new child a place among the parent's children: by birth year when it has one,
+ * otherwise as the youngest — children are usually entered oldest first.
+ */
+async function placeNewChild(db: FamilyDB, parent: ID, child: ID) {
+  const all = await childrenOf(db, [parent])
+  const me = all.find((p) => p.id === child)
+  if (!me) return
+  const others = all.filter((p) => p.id !== child)
+  const known = me.birth?.year != null
+  const at = known ? others.findIndex((s) => compareAge(me, s) === 'older') : -1
+  const ordered = at < 0 ? [...others, me] : [...others.slice(0, at), me, ...others.slice(at)]
+  for (const [i, p] of ordered.entries()) if (p.birthOrder !== i + 1) await db.persons.update(p.id, { birthOrder: i + 1 })
 }
 
 /** Gives the sibling the anchor's (non-step) parents, and fixes the birth order when years are missing. */
@@ -235,15 +269,7 @@ async function linkSibling(db: FamilyDB, anchor: ID, sibling: ID, older?: boolea
 
   const [a, s] = await Promise.all([db.persons.get(anchor), db.persons.get(sibling)])
   if (older === undefined || (a?.birth?.year != null && s?.birth?.year != null)) return
-  const ids = new Set<ID>()
-  for (const l of parents) {
-    for (const c of await db.parentLinks.where('parentId').equals(l.parentId).toArray()) {
-      if (counted(c) && c.childId !== sibling) ids.add(c.childId)
-    }
-  }
-  const group = (await db.persons.bulkGet([...ids])).filter((p): p is Person => !!p)
-  const key = (p: Person) => [p.birthOrder ?? Infinity, p.birth?.year ?? Infinity]
-  group.sort((x, y) => key(x)[0] - key(y)[0] || key(x)[1] - key(y)[1])
+  const group = (await childrenOf(db, parents.map((l) => l.parentId))).filter((p) => p.id !== sibling)
   const at = group.findIndex((p) => p.id === anchor) + (older ? 0 : 1)
   const ordered = [...group.slice(0, at).map((p) => p.id), sibling, ...group.slice(at).map((p) => p.id)]
   for (const [i, id] of ordered.entries()) await db.persons.update(id, { birthOrder: i + 1 })

@@ -344,3 +344,80 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.section-row .btn {
+  padding: 2px 10px;
+  font-size: 13px;
+}
+
+.order-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.order-list li.on {
+  border-color: var(--accent);
+}
+
+.order-list .order-n {
+  width: 22px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.order-list .avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--avatar);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.order-list .who {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-list .who small {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.order-list .icon-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+}
+
+.order-list .icon-btn:disabled {
+  opacity: 0.25;
+}

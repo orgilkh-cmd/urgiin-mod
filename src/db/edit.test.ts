@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { loadFamily, openFamilyDB } from './db'
-import { addRelative, createPerson, deletePerson, deleteUnion } from './edit'
+import { addRelative, createPerson, deletePerson, deleteUnion, setBirthOrder } from './edit'
 import { FamilyGraph } from '../kinship/graph'
 import { Kinship } from '../kinship/kinship'
 
@@ -61,6 +61,30 @@ describe('editing', () => {
     expect(await relate(db, me, older)).toBe('Ах')
     expect(await relate(db, me, middle)).toBe('Эмэгтэй дүү')
     expect(await relate(db, younger, middle)).toBe('Эгч')
+  })
+
+  it('makes each new child without a birth year the youngest', async () => {
+    const db = fresh()
+    const dad = await createPerson(db, { givenName: 'Бат', sex: 'M' })
+    const first = await addRelative(db, dad, 'child', { person: { givenName: 'Ганбат', sex: 'M' } })
+    const second = await addRelative(db, dad, 'child', { person: { givenName: 'Сарнай', sex: 'F' } })
+    const third = await addRelative(db, dad, 'child', { person: { givenName: 'Төгс', sex: 'M' } })
+    expect(await relate(db, second, first)).toBe('Ах')
+    expect(await relate(db, second, third)).toBe('Эрэгтэй дүү')
+    // One with a year goes in by year, among those whose years are known.
+    await db.persons.update(first, { birth: { year: 1975, qualifier: 'exact' } })
+    const early = await addRelative(db, dad, 'child', { person: { givenName: 'Ууган', sex: 'M', birth: { year: 1970, qualifier: 'exact' } } })
+    expect(await relate(db, first, early)).toBe('Ах')
+    expect(await relate(db, third, early)).toBe('Ах')
+  })
+
+  it('reorders a whole family at once', async () => {
+    const db = fresh()
+    const dad = await createPerson(db, { givenName: 'Бат', sex: 'M' })
+    const a = await addRelative(db, dad, 'child', { person: { givenName: 'А', sex: 'M' } })
+    const b = await addRelative(db, dad, 'child', { person: { givenName: 'Б', sex: 'M' } })
+    await setBirthOrder(db, [b, a])
+    expect(await relate(db, a, b)).toBe('Ах')
   })
 
   it('refuses a sibling without parents', async () => {

@@ -5,6 +5,8 @@ import { ClanSpreadDialog, type ClanChange } from './edit/ClanSpreadDialog'
 import { clearAllData, loadSampleFamily, saveSetting, useFamily, usePhotos, useSetting } from './db/instance'
 import { AddRelativeDialog } from './edit/AddRelativeDialog'
 import { quickAddLabel, type QuickAdd } from './edit/quickAdd'
+import { OrderDialog } from './edit/OrderDialog'
+import { childrenOf, parentIdsOf } from './edit/order'
 import { PersonEditor } from './edit/PersonEditor'
 import { Gallery } from './gallery/Gallery'
 import { Wizard } from './edit/Wizard'
@@ -23,6 +25,7 @@ type Modal =
   | { type: 'edit'; id: ID }
   | { type: 'add'; id: ID; kind: QuickAdd }
   | ({ type: 'clan' } & ClanChange)
+  | { type: 'order'; parentIds: ID[]; highlight?: ID }
   | { type: 'terms' | 'search' | 'backup' }
   | null
 
@@ -173,6 +176,8 @@ export default function App() {
     .map((l) => data.persons.find((p) => p.id === l.parentId))
   const hasParent = (sex: 'M' | 'F') => parents.some((p) => p?.sex === sex)
   const full = scope === 'full'
+  const familyIds = parentIdsOf(data, current)
+  const hasSiblings = familyIds.length > 0 && childrenOf(data, familyIds).length > 1
   const quickAdds: QuickAdd[] = [
     ...(hasParent('M') ? [] : (['father'] as const)),
     ...(hasParent('F') ? [] : (['mother'] as const)),
@@ -272,6 +277,16 @@ export default function App() {
             Энэ бол би
           </button>
         )}
+        {hasSiblings && (
+          <button
+            type="button"
+            className="btn subtle"
+            onClick={() => setModal({ type: 'order', parentIds: familyIds, highlight: current })}
+            title="Ах дүүсийн төрсөн дараалал"
+          >
+            ⇅ Дараалал
+          </button>
+        )}
         <span className="quick-adds">
           {quickAdds.map((kind) => (
             <button key={kind} type="button" className="chip" onClick={() => setModal({ type: 'add', id: current, kind })}>
@@ -318,6 +333,9 @@ export default function App() {
       )}
       {modal?.type === 'add' && (
         <AddRelativeDialog data={data} anchorId={modal.id} kind={modal.kind} onClose={closeModal} onClanChange={clanChanged} />
+      )}
+      {modal?.type === 'order' && (
+        <OrderDialog data={data} parentIds={modal.parentIds} highlight={modal.highlight} onClose={closeModal} />
       )}
       {modal?.type === 'clan' && (
         <ClanSpreadDialog data={data} id={modal.id} from={modal.from} to={modal.to} onClose={closeModal} />

@@ -22,6 +22,8 @@ export function Dialog({ title, onClose, actions, wide, children }: Props) {
       ref={ref}
       className={`dialog${wide ? ' wide' : ''}`}
       onCancel={(e) => {
+        // React bubbles a nested dialog's cancel up here; let that one close on its own.
+        if (e.target !== ref.current) return
         e.preventDefault()
         onClose()
       }}
